@@ -74,9 +74,10 @@
     <h2>Live Monitor Stream (480p)</h2>
 
     <div class="controls">
-        <input type="text" id="serverUrl" placeholder="Enter wss://your-app.onrender.com" />
+        <input type="text" id="serverUrl" placeholder="wss://sharestream-relay.onrender.com/live" />
         <button id="connectBtn">Connect Live Feed</button>
         <button id="disconnectBtn" disabled>Disconnect</button>
+        <button id="downloadBtn">Download Last Recording</button>
     </div>
 
     <div class="status" id="statusLabel">Status: Disconnected</div>
@@ -87,6 +88,7 @@
 <script>
     const connectBtn = document.getElementById('connectBtn');
     const disconnectBtn = document.getElementById('disconnectBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
     const serverUrlInput = document.getElementById('serverUrl');
     const statusLabel = document.getElementById('statusLabel');
     const videoElement = document.getElementById('livePlayer');
@@ -95,6 +97,20 @@
 
     const cachedUrl = localStorage.getItem('last_stream_url');
     if (cachedUrl) serverUrlInput.value = cachedUrl;
+
+    // Derive the matching https://.../download/live_record.mp4 from whatever
+    // ws(s):// URL the user entered (or the placeholder default).
+    downloadBtn.addEventListener('click', () => {
+        const raw = serverUrlInput.value.trim() || serverUrlInput.placeholder;
+        try {
+            const u = new URL(raw);
+            u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
+            u.pathname = '/download/live_record.mp4';
+            window.open(u.toString(), '_blank');
+        } catch (e) {
+            alert('Enter a valid wss:// URL first.');
+        }
+    });
 
     function setStatus(text, color) {
         statusLabel.innerText = `Status: ${text}`;

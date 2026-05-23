@@ -116,11 +116,26 @@
         connectBtn.disabled = true;
     }
 
+    // Normalize whatever the user pastes (http/https/ws/wss, with or without
+    // a path) into the expected wss://host/live form.
+    function normalizeLiveUrl(raw) {
+        let s = (raw || '').trim();
+        if (!s) return '';
+        if (!/^(wss?|https?):\/\//i.test(s)) s = 'wss://' + s;
+        let u;
+        try { u = new URL(s); } catch (_) { return ''; }
+        if (u.protocol === 'https:') u.protocol = 'wss:';
+        else if (u.protocol === 'http:') u.protocol = 'ws:';
+        if (!u.pathname || u.pathname === '/' || u.pathname === '') u.pathname = '/live';
+        return u.toString();
+    }
+
     // Derive the matching https://.../download/live_record.h264 from the WS URL.
     downloadBtn.addEventListener('click', () => {
         const raw = serverUrlInput.value.trim() || serverUrlInput.placeholder;
+        const wsUrl = normalizeLiveUrl(raw);
         try {
-            const u = new URL(raw);
+            const u = new URL(wsUrl || raw);
             u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
             u.pathname = '/download/live_record.h264';
             window.open(u.toString(), '_blank');
@@ -178,8 +193,10 @@
     }
 
     connectBtn.addEventListener('click', async () => {
-        const targetUrl = serverUrlInput.value.trim();
+        const raw = serverUrlInput.value.trim() || serverUrlInput.placeholder;
+        const targetUrl = normalizeLiveUrl(raw);
         if (!targetUrl) return alert("Please specify a valid server endpoint.");
+        serverUrlInput.value = targetUrl;
         localStorage.setItem('last_stream_url', targetUrl);
 
         connectBtn.disabled = true;

@@ -3,280 +3,428 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Low-Bandwidth Stream Monitor</title>
+    <title>shareStream — Devices</title>
     <style>
+        :root { color-scheme: dark; }
         body {
-            background-color: #0f172a;
+            background: #0f172a;
             color: #f8fafc;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+            padding: 24px;
         }
-        .container {
-            text-align: center;
-            width: 100%;
-            max-width: 1100px;
-            padding: 20px;
-        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h2 { margin-top: 0; }
         .controls {
-            margin-bottom: 20px;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
+            display: flex; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 18px; align-items: center;
         }
         input {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #fff;
-            padding: 10px 15px;
-            border-radius: 6px;
-            width: 350px;
-            font-size: 0.9rem;
+            background: #1e293b; border: 1px solid #334155; color: #fff;
+            padding: 10px 14px; border-radius: 6px; min-width: 380px; font-size: 0.9rem;
         }
         button {
-            background: #2563eb;
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
+            background: #2563eb; color: #fff; border: none;
+            padding: 10px 16px; border-radius: 6px; cursor: pointer;
+            font-weight: 600; transition: background .15s;
         }
-        button:hover { background: #1d4ed8; }
+        button:hover  { background: #1d4ed8; }
         button:disabled { background: #475569; cursor: not-allowed; }
+        button.ghost  { background: #334155; }
+        button.ghost:hover { background: #475569; }
+        button.danger { background: #dc2626; }
+        button.danger:hover { background: #b91c1c; }
+
         .status {
-            font-size: 0.85rem;
-            color: #94a3b8;
-            margin-bottom: 10px;
-            min-height: 20px;
+            font-size: 0.85rem; color: #94a3b8; margin-bottom: 14px; min-height: 20px;
         }
+
+        #deviceList { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+        .device {
+            background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+            padding: 14px 16px;
+        }
+        .device.active { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
+        .device-row {
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+        }
+        .dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #64748b; flex-shrink: 0;
+        }
+        .dot.online  { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .dot.offline { background: #64748b; }
+        .device-name { font-weight: 600; font-size: 1rem; }
+        .device-sub  { color: #94a3b8; font-size: 0.82rem; }
+        .grow { flex: 1; min-width: 0; }
+        .btn-row { display: flex; gap: 8px; }
+        .chev {
+            background: transparent; border: 1px solid #334155;
+            color: #94a3b8; width: 32px; padding: 4px; font-size: 0.9rem;
+        }
+        .details {
+            margin-top: 12px; padding: 12px; background: #0f172a;
+            border-radius: 6px; font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-size: 0.78rem; white-space: pre-wrap; overflow-x: auto; color: #cbd5e1;
+            display: none; max-height: 360px; overflow-y: auto;
+        }
+        .details.open { display: block; }
+
         canvas {
-            background: #000;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 1024px;
-            height: auto;
-            border: 1px solid #1e293b;
-            display: block;
-            margin: 0 auto;
+            background: #000; border-radius: 12px; width: 100%;
+            max-width: 100%; height: auto; border: 1px solid #1e293b;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,.5);
         }
-        .hint {
-            color: #64748b;
-            font-size: 0.75rem;
-            margin-top: 12px;
+        .player-section { margin-top: 24px; }
+        .player-bar {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+            margin-bottom: 10px;
         }
+        .player-title { font-weight: 600; }
+        .hint { color: #64748b; font-size: 0.75rem; margin-top: 12px; }
+        .empty {
+            color: #64748b; text-align: center; padding: 30px;
+            border: 1px dashed #334155; border-radius: 10px;
+        }
+        .stats { display: flex; gap: 16px; font-size: 0.78rem; color: #94a3b8; }
+        .stats b { color: #f8fafc; font-weight: 600; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Live Monitor Stream</h2>
+    <h2>shareStream — Devices</h2>
 
     <div class="controls">
-        <input type="text" id="serverUrl" placeholder="wss://sharestream-relay.onrender.com/live" />
-        <button id="connectBtn">Connect Live Feed</button>
-        <button id="disconnectBtn" disabled>Disconnect</button>
-        <button id="downloadBtn">Download Last Recording (.h264)</button>
+        <input type="text" id="relayUrl"
+               placeholder="https://sharestream-relay.onrender.com" />
+        <button id="refreshBtn">Refresh now</button>
+        <label class="stats" style="margin-left:8px">
+            <input type="checkbox" id="autoRefresh" checked />
+            Auto-refresh
+        </label>
     </div>
 
-    <div class="status" id="statusLabel">Status: Disconnected</div>
+    <div class="status" id="statusLabel">Status: idle</div>
 
-    <canvas id="livePlayer" width="1280" height="720"></canvas>
+    <div id="deviceList">
+        <div class="empty">No devices yet. Start the desktop agent and click <b>Refresh now</b>.</div>
+    </div>
 
-    <p class="hint">Decoded in-browser via WebCodecs (Chrome / Edge / latest Firefox &amp; Safari). The download link returns a raw Annex-B H.264 file &mdash; playable in VLC, or convert with <code>ffmpeg -i live_record.h264 -c copy out.mp4</code>.</p>
+    <div class="player-section">
+        <div class="player-bar">
+            <span class="player-title" id="playerTitle">No stream selected</span>
+            <span class="grow"></span>
+            <button id="disconnectBtn" class="danger" disabled>Stop watching</button>
+        </div>
+        <canvas id="livePlayer" width="1280" height="720"></canvas>
+        <p class="hint">
+            Decoded in-browser via WebCodecs (Chrome / Edge / latest Firefox &amp; Safari).
+            Each device records its own raw Annex-B H.264 file on the relay; click
+            <b>Download</b> to fetch it.
+            Convert with <code>ffmpeg -i live_record_&lt;id&gt;.h264 -c copy out.mp4</code>.
+        </p>
+    </div>
 </div>
 
 <script>
-    const connectBtn      = document.getElementById('connectBtn');
-    const disconnectBtn   = document.getElementById('disconnectBtn');
-    const downloadBtn     = document.getElementById('downloadBtn');
-    const serverUrlInput  = document.getElementById('serverUrl');
-    const statusLabel     = document.getElementById('statusLabel');
-    const canvas          = document.getElementById('livePlayer');
-    const ctx             = canvas.getContext('2d');
+// -------- Element refs --------
+const relayInput     = document.getElementById('relayUrl');
+const refreshBtn     = document.getElementById('refreshBtn');
+const autoRefresh    = document.getElementById('autoRefresh');
+const statusLabel    = document.getElementById('statusLabel');
+const deviceList     = document.getElementById('deviceList');
+const disconnectBtn  = document.getElementById('disconnectBtn');
+const playerTitle    = document.getElementById('playerTitle');
+const canvas         = document.getElementById('livePlayer');
+const ctx            = canvas.getContext('2d');
 
-    let activeSocket = null;
-    let decoder      = null;
-    let frameCounter = 0;
-    let decoderReady = false;
+// -------- Persistent state --------
+const cachedRelay = localStorage.getItem('relay_base');
+if (cachedRelay) relayInput.value = cachedRelay;
 
-    const cachedUrl = localStorage.getItem('last_stream_url');
-    if (cachedUrl) serverUrlInput.value = cachedUrl;
+let activeSocket   = null;
+let decoder        = null;
+let decoderReady   = false;
+let frameCounter   = 0;
+let watchingId     = null;
+let expanded       = new Set(JSON.parse(localStorage.getItem('expanded') || '[]'));
+let pollTimer      = null;
 
-    if (!('VideoDecoder' in window)) {
-        statusLabel.innerText = "Status: WebCodecs not supported in this browser. Use Chrome 94+ / Edge / Firefox 130+ / Safari 16.4+.";
-        statusLabel.style.color = "#f87171";
-        connectBtn.disabled = true;
+if (!('VideoDecoder' in window)) {
+    setStatus("WebCodecs not supported. Use Chrome 94+ / Edge / Firefox 130+ / Safari 16.4+.", "#f87171");
+}
+
+// -------- Helpers --------
+function setStatus(text, color) {
+    statusLabel.innerText = `Status: ${text}`;
+    statusLabel.style.color = color || "#94a3b8";
+}
+
+// Parse user-pasted relay base into a normalized https://host[:port] origin.
+function relayBase(raw) {
+    let s = (raw || '').trim();
+    if (!s) return '';
+    if (!/^(wss?|https?):\/\//i.test(s)) s = 'https://' + s;
+    let u;
+    try { u = new URL(s); } catch (_) { return ''; }
+    if (u.protocol === 'ws:')  u.protocol = 'http:';
+    if (u.protocol === 'wss:') u.protocol = 'https:';
+    return `${u.protocol}//${u.host}`;
+}
+
+function wsBase(httpBase) {
+    return httpBase.replace(/^http/i, 'ws');
+}
+
+function fmtMB(n)  { return (n != null) ? `${(n).toLocaleString()} MB` : '—'; }
+function fmtPct(n) { return (n != null) ? `${n}%` : '—'; }
+function fmtAge(ms) {
+    if (!ms) return '—';
+    const dt = Date.now() - ms;
+    if (dt < 0) return 'now';
+    if (dt < 1000) return `${dt} ms ago`;
+    if (dt < 60_000) return `${(dt/1000)|0} s ago`;
+    if (dt < 3_600_000) return `${(dt/60_000)|0} min ago`;
+    return `${(dt/3_600_000)|0} h ago`;
+}
+
+function summaryLine(meta) {
+    if (!meta) return '';
+    const ip   = meta.primary_ipv4 || '—';
+    const os   = meta.os_name || '—';
+    const cpu  = meta.cpu_brand || '';
+    const bat  = meta.battery && meta.battery.present
+        ? ` · 🔋 ${fmtPct(meta.battery.percent)}${meta.battery.on_ac ? ' AC' : ''}`
+        : '';
+    return `${ip} · ${os}${cpu ? ' · ' + cpu : ''}${bat}`;
+}
+
+// -------- Device list rendering --------
+async function refreshDevices() {
+    const base = relayBase(relayInput.value || relayInput.placeholder);
+    if (!base) {
+        setStatus("Enter a relay URL.", "#f87171");
+        return;
     }
-
-    // Normalize whatever the user pastes (http/https/ws/wss, with or without
-    // a path) into the expected wss://host/live form.
-    function normalizeLiveUrl(raw) {
-        let s = (raw || '').trim();
-        if (!s) return '';
-        if (!/^(wss?|https?):\/\//i.test(s)) s = 'wss://' + s;
-        let u;
-        try { u = new URL(s); } catch (_) { return ''; }
-        if (u.protocol === 'https:') u.protocol = 'wss:';
-        else if (u.protocol === 'http:') u.protocol = 'ws:';
-        if (!u.pathname || u.pathname === '/' || u.pathname === '') u.pathname = '/live';
-        return u.toString();
+    localStorage.setItem('relay_base', base);
+    try {
+        const res = await fetch(`${base}/devices`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        renderDevices(json.devices || []);
+        setStatus(`Connected to ${base}`, "#4ade80");
+    } catch (e) {
+        deviceList.innerHTML = `<div class="empty">Cannot reach relay at <b>${base}</b>: ${e.message}</div>`;
+        setStatus(`Cannot reach relay: ${e.message}`, "#f87171");
     }
+}
 
-    // Derive the matching https://.../download/live_record.h264 from the WS URL.
-    downloadBtn.addEventListener('click', () => {
-        const raw = serverUrlInput.value.trim() || serverUrlInput.placeholder;
-        const wsUrl = normalizeLiveUrl(raw);
-        try {
-            const u = new URL(wsUrl || raw);
-            u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
-            u.pathname = '/download/live_record.h264';
-            window.open(u.toString(), '_blank');
-        } catch (e) {
-            alert('Enter a valid wss:// URL first.');
-        }
+function renderDevices(devices) {
+    if (!devices.length) {
+        deviceList.innerHTML = `<div class="empty">No devices have ever connected to this relay.</div>`;
+        return;
+    }
+    devices.sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return (b.last_seen_ms || 0) - (a.last_seen_ms || 0);
     });
 
-    function setStatus(text, color) {
-        statusLabel.innerText = `Status: ${text}`;
-        statusLabel.style.color = color || "#94a3b8";
-    }
+    const base = relayBase(relayInput.value || relayInput.placeholder);
+    deviceList.innerHTML = '';
+    for (const d of devices) {
+        const meta = d.metadata || {};
+        const name = meta.hostname || d.device_id;
+        const isExp = expanded.has(d.device_id);
+        const isWatching = watchingId === d.device_id;
 
-    function teardown() {
-        if (activeSocket) {
-            try { activeSocket.close(); } catch (_) {}
-            activeSocket = null;
-        }
-        if (decoder && decoder.state !== 'closed') {
-            try { decoder.close(); } catch (_) {}
-        }
-        decoder = null;
-        decoderReady = false;
-        frameCounter = 0;
-        connectBtn.disabled = false;
-        disconnectBtn.disabled = true;
-    }
-
-    disconnectBtn.addEventListener('click', () => {
-        teardown();
-        setStatus("Disconnected by user.", "#f87171");
-    });
-
-    // Scan an Annex-B buffer for an IDR (NAL type 5) or SPS (NAL type 7).
-    // Either marks a random-access point that the decoder treats as 'key'.
-    function isKeyframeAU(u8) {
-        const len = u8.length;
-        let i = 0;
-        while (i + 4 < len) {
-            // Match 0x000001 or 0x00000001 start codes.
-            if (u8[i] === 0 && u8[i+1] === 0) {
-                let hdr = -1;
-                if (u8[i+2] === 1) hdr = i + 3;
-                else if (u8[i+2] === 0 && u8[i+3] === 1) hdr = i + 4;
-                if (hdr > 0 && hdr < len) {
-                    const nalType = u8[hdr] & 0x1F;
-                    if (nalType === 5 || nalType === 7) return true;
-                    i = hdr;
-                    continue;
-                }
-            }
-            i++;
-        }
-        return false;
-    }
-
-    connectBtn.addEventListener('click', async () => {
-        const raw = serverUrlInput.value.trim() || serverUrlInput.placeholder;
-        const targetUrl = normalizeLiveUrl(raw);
-        if (!targetUrl) return alert("Please specify a valid server endpoint.");
-        serverUrlInput.value = targetUrl;
-        localStorage.setItem('last_stream_url', targetUrl);
-
-        connectBtn.disabled = true;
-        disconnectBtn.disabled = false;
-        setStatus("Configuring WebCodecs decoder...");
-
-        // H.264 Baseline 3.1 — matches the openh264 encoder config on the desktop.
-        const codec = 'avc1.42E01F';
-        try {
-            const support = await VideoDecoder.isConfigSupported({ codec });
-            if (!support.supported) {
-                setStatus(`Browser cannot decode ${codec}`, "#f87171");
-                return teardown();
-            }
-        } catch (e) {
-            setStatus(`Decoder probe failed: ${e}`, "#f87171");
-            return teardown();
-        }
-
-        decoder = new VideoDecoder({
-            output: (frame) => {
-                if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
-                    canvas.width  = frame.displayWidth;
-                    canvas.height = frame.displayHeight;
-                }
-                ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
-                frame.close();
-            },
-            error: (e) => {
-                console.error("Decoder error:", e);
-                setStatus(`Decoder error: ${e.message}`, "#f87171");
-            }
+        const card = document.createElement('div');
+        card.className = 'device' + (isWatching ? ' active' : '');
+        card.innerHTML = `
+            <div class="device-row">
+                <span class="dot ${d.online ? 'online' : 'offline'}"
+                      title="${d.online ? 'online' : 'offline'}"></span>
+                <div class="grow">
+                    <div class="device-name">${escapeHtml(name)}
+                        <span class="device-sub">[${escapeHtml(d.device_id)}]</span>
+                    </div>
+                    <div class="device-sub">${escapeHtml(summaryLine(meta))}</div>
+                    <div class="stats" style="margin-top:4px">
+                        <span>viewers: <b>${d.viewer_count}</b></span>
+                        <span>last frame: <b>${fmtAge(d.last_seen_ms)}</b></span>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button data-action="watch"    ${d.online ? '' : 'disabled'}>
+                        ${isWatching ? 'Watching…' : 'Watch'}
+                    </button>
+                    <button data-action="download" class="ghost">Download</button>
+                    <button data-action="toggle" class="chev" title="Details">
+                        ${isExp ? '▾' : '▸'}
+                    </button>
+                </div>
+            </div>
+            <div class="details ${isExp ? 'open' : ''}">${escapeHtml(JSON.stringify(meta, null, 2))}</div>
+        `;
+        card.querySelector('[data-action="watch"]').addEventListener('click', () => watchDevice(d.device_id, name));
+        card.querySelector('[data-action="download"]').addEventListener('click', () => {
+            window.open(`${base}/download/${encodeURIComponent(d.device_id)}`, '_blank');
         });
-        // No `description` = decoder expects Annex-B in-band SPS/PPS.
-        decoder.configure({
-            codec,
-            optimizeForLatency: true,
-            hardwareAcceleration: "prefer-hardware"
+        card.querySelector('[data-action="toggle"]').addEventListener('click', () => {
+            if (expanded.has(d.device_id)) expanded.delete(d.device_id);
+            else expanded.add(d.device_id);
+            localStorage.setItem('expanded', JSON.stringify([...expanded]));
+            card.querySelector('.details').classList.toggle('open');
+            card.querySelector('[data-action="toggle"]').textContent =
+                expanded.has(d.device_id) ? '▾' : '▸';
         });
-        decoderReady = true;
+        deviceList.appendChild(card);
+    }
+}
 
-        const ws = new WebSocket(targetUrl);
-        activeSocket = ws;
-        ws.binaryType = "arraybuffer";
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
 
-        ws.onopen = () => setStatus("Connected. Awaiting first keyframe...", "#fbbf24");
+// -------- Player (WebCodecs) --------
+function teardownPlayer() {
+    if (activeSocket) { try { activeSocket.close(); } catch (_) {} activeSocket = null; }
+    if (decoder && decoder.state !== 'closed') { try { decoder.close(); } catch (_) {} }
+    decoder = null;
+    decoderReady = false;
+    frameCounter = 0;
+    watchingId = null;
+    disconnectBtn.disabled = true;
+    playerTitle.textContent = 'No stream selected';
+}
 
-        let sawKey = false;
-        const startTs = performance.now();
-        ws.onmessage = (event) => {
-            if (!decoderReady) return;
-            const u8 = new Uint8Array(event.data);
-            if (u8.length === 0) return;
-            const isKey = isKeyframeAU(u8);
-            if (!sawKey) {
-                if (!isKey) return;        // Wait until a random-access point.
-                sawKey = true;
-                setStatus("Live stream playing.", "#4ade80");
+disconnectBtn.addEventListener('click', () => {
+    teardownPlayer();
+    setStatus("Stopped watching.", "#94a3b8");
+    refreshDevices();
+});
+
+// Scan an Annex-B buffer for an IDR (NAL type 5) or SPS (NAL type 7).
+function isKeyframeAU(u8) {
+    const len = u8.length;
+    let i = 0;
+    while (i + 4 < len) {
+        if (u8[i] === 0 && u8[i+1] === 0) {
+            let hdr = -1;
+            if (u8[i+2] === 1) hdr = i + 3;
+            else if (u8[i+2] === 0 && u8[i+3] === 1) hdr = i + 4;
+            if (hdr > 0 && hdr < len) {
+                const nalType = u8[hdr] & 0x1F;
+                if (nalType === 5 || nalType === 7) return true;
+                i = hdr;
+                continue;
             }
-            try {
-                decoder.decode(new EncodedVideoChunk({
-                    type: isKey ? 'key' : 'delta',
-                    timestamp: Math.round((frameCounter++ * 1_000_000) / 30),
-                    data: u8
-                }));
-            } catch (e) {
-                console.warn("decode() failed:", e);
-            }
-        };
+        }
+        i++;
+    }
+    return false;
+}
 
-        ws.onclose = () => {
-            setStatus("Stream pipeline disconnected.", "#f87171");
-            teardown();
-        };
-        ws.onerror = (err) => {
-            console.error("Socket error:", err);
-            setStatus("Error connecting to host.", "#f87171");
-            teardown();
-        };
+async function watchDevice(deviceId, displayName) {
+    teardownPlayer();
+    const base = relayBase(relayInput.value || relayInput.placeholder);
+    if (!base) { alert('Enter a valid relay URL.'); return; }
+    const wsUrl = `${wsBase(base)}/live/${encodeURIComponent(deviceId)}`;
+    watchingId = deviceId;
+    playerTitle.textContent = `Watching: ${displayName} [${deviceId}]`;
+    disconnectBtn.disabled = false;
+    setStatus(`Connecting to ${deviceId}…`, "#fbbf24");
+
+    const codec = 'avc1.42E01F';
+    try {
+        const support = await VideoDecoder.isConfigSupported({ codec });
+        if (!support.supported) {
+            setStatus(`Browser cannot decode ${codec}`, "#f87171");
+            teardownPlayer();
+            return;
+        }
+    } catch (e) {
+        setStatus(`Decoder probe failed: ${e}`, "#f87171");
+        teardownPlayer();
+        return;
+    }
+
+    decoder = new VideoDecoder({
+        output: (frame) => {
+            if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
+                canvas.width  = frame.displayWidth;
+                canvas.height = frame.displayHeight;
+            }
+            ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+            frame.close();
+        },
+        error: (e) => {
+            console.error("Decoder error:", e);
+            setStatus(`Decoder error: ${e.message}`, "#f87171");
+        }
     });
+    decoder.configure({
+        codec,
+        optimizeForLatency: true,
+        hardwareAcceleration: "prefer-hardware"
+    });
+    decoderReady = true;
+
+    const ws = new WebSocket(wsUrl);
+    activeSocket = ws;
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => setStatus(`Connected to ${deviceId}. Awaiting keyframe…`, "#fbbf24");
+
+    let sawKey = false;
+    ws.onmessage = (event) => {
+        if (!decoderReady) return;
+        const u8 = new Uint8Array(event.data);
+        if (u8.length === 0) return;
+        const isKey = isKeyframeAU(u8);
+        if (!sawKey) {
+            if (!isKey) return;
+            sawKey = true;
+            setStatus(`Live: ${deviceId}`, "#4ade80");
+            refreshDevices();
+        }
+        try {
+            decoder.decode(new EncodedVideoChunk({
+                type: isKey ? 'key' : 'delta',
+                timestamp: Math.round((frameCounter++ * 1_000_000) / 30),
+                data: u8
+            }));
+        } catch (e) {
+            console.warn("decode() failed:", e);
+        }
+    };
+
+    ws.onclose = () => {
+        setStatus(`Disconnected from ${deviceId}.`, "#f87171");
+        teardownPlayer();
+    };
+    ws.onerror = (err) => {
+        console.error("Socket error:", err);
+        setStatus("Stream socket error.", "#f87171");
+        teardownPlayer();
+    };
+}
+
+// -------- Wiring --------
+refreshBtn.addEventListener('click', refreshDevices);
+relayInput.addEventListener('change', refreshDevices);
+
+function schedulePolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (autoRefresh.checked) pollTimer = setInterval(refreshDevices, 3000);
+}
+autoRefresh.addEventListener('change', schedulePolling);
+
+refreshDevices();
+schedulePolling();
 </script>
 </body>
 </html>

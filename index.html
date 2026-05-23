@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Low-Bandwidth Stream Monitor</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            text-align: center;
+            width: 100%;
+            max-width: 860px;
+            padding: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        input {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 6px;
+            width: 350px;
+            font-size: 0.9rem;
+        }
+        button {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        .status {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+            height: 20px;
+        }
+        video {
+            background: #000;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            width: 854px;
+            max-width: 100%;
+            height: auto;
+            aspect-ratio: 854 / 480;
+            border: 1px solid #1e293b;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Live Monitor Stream (480p)</h2>
+
+    <div class="controls">
+        <input type="text" id="serverUrl" placeholder="Enter wss://your-app.onrender.com" />
+        <button id="connectBtn">Connect Live Feed</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+    </div>
+
+    <div class="status" id="statusLabel">Status: Disconnected</div>
+
+    <video id="livePlayer" autoplay controls muted playsinline></video>
+</div>
+
+<script>
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const serverUrlInput = document.getElementById('serverUrl');
+    const statusLabel = document.getElementById('statusLabel');
+    const videoElement = document.getElementById('livePlayer');
+
+    let activeSocket = null;
+
+    const cachedUrl = localStorage.getItem('last_stream_url');
+    if (cachedUrl) serverUrlInput.value = cachedUrl;
+
+    function setStatus(text, color) {
+        statusLabel.innerText = `Status: ${text}`;
+        statusLabel.style.color = color || "#94a3b8";
+    }
+
+    function teardown() {
+        if (activeSocket) {
+            try { activeSocket.close(); } catch (_) {}
+            activeSocket = null;
+        }
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+    }
+
+    disconnectBtn.addEventListener('click', () => {
+        teardown();
+        setStatus("Disconnected by user.", "#f87171");
+    });
+
+    connectBtn.addEventListener('click', () => {
+        const targetUrl = serverUrlInput.value.trim();
+        if (!targetUrl) return alert("Please specify a valid server endpoint.");
+        localStorage.setItem('last_stream_url', targetUrl);
+
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        setStatus("Connecting to pipeline...");
+
+        // MediaSource Extensions: feed binary H.264-in-fMP4 chunks straight to the
+        // browser's hardware video decoder with no per-frame JS work.
+        const mediaSource = new MediaSource();
+        videoElement.src = URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener('sourceopen', () => {
+            // H.264 Baseline 3.0 — matches the Media Foundation default profile
+            // emitted by the windows-capture encoder at 854x480.
+            const mime = 'video/mp4; codecs="avc1.42E01E"';
+            if (!MediaSource.isTypeSupported(mime)) {
+                setStatus(`Browser cannot decode ${mime}`, "#f87171");
+                teardown();
+                return;
+            }
+            const sourceBuffer = mediaSource.addSourceBuffer(mime);
+            const queue = [];
+
+            const pump = () => {
+                if (sourceBuffer.updating || queue.length === 0) return;
+                try {
+                    sourceBuffer.appendBuffer(queue.shift());
+                } catch (e) {
+                    console.error("appendBuffer failed:", e);
+                }
+            };
+            sourceBuffer.addEventListener('updateend', pump);
+
+            const ws = new WebSocket(targetUrl);
+            activeSocket = ws;
+            ws.binaryType = "arraybuffer";
+
+            ws.onopen = () => setStatus("Connected. Awaiting desktop stream chunks...", "#4ade80");
+
+            ws.onmessage = (event) => {
+                queue.push(event.data);
+                pump();
+            };
+
+            ws.onclose = () => {
+                setStatus("Stream pipeline disconnected.", "#f87171");
+                teardown();
+            };
+
+            ws.onerror = (err) => {
+                console.error("Socket error:", err);
+                setStatus("Error connecting to host.", "#f87171");
+                teardown();
+            };
+        }, { once: true });
+    });
+</script>
+</body>
+</html>
